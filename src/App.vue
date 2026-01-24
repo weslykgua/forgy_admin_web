@@ -41,6 +41,22 @@
           <li>
             <a
               href="#"
+              @click.prevent="currentView = 'routines'"
+              :class="[
+                'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
+                currentView === 'routines'
+                  ? 'bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-lg shadow-indigo-500/25'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+              ]"
+            >
+              <span class="text-lg">📅</span>
+              <span class="font-medium">Rutinas</span>
+              <span class="ml-auto bg-purple-500/30 text-purple-300 text-xs px-2 py-1 rounded-full">{{ routines.length }}</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
               @click.prevent="currentView = 'stats'"
               :class="[
                 'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
@@ -98,10 +114,9 @@
         <div class="flex justify-between items-center">
           <div>
             <h1 class="text-2xl font-bold text-white">
-              {{ currentView === 'exercises' ? 'Gestión de Ejercicios' : 'Estadísticas' }}
+              {{ currentView === 'exercises' ? 'Gestión de Ejercicios' : (currentView === 'routines' ? 'Gestión de Rutinas' : 'Estadísticas') }}
             </h1>
-            <p class="text-slate-400 text-sm">{{ currentView === 'exercises' ? 'Administra el catálogo de ejercicios' :
-              'Resumen del sistema' }}</p>
+            <p class="text-slate-400 text-sm">{{ currentView === 'exercises' ? 'Administra el catálogo de ejercicios' : (currentView === 'routines' ? 'Crea y gestiona las rutinas de los usuarios' : 'Resumen del sistema') }}</p>
           </div>
           <div class="flex items-center gap-3">
             <span class="flex items-center gap-2 text-sm text-green-400">
@@ -225,6 +240,68 @@
             </button>
           </div>
         </div>
+
+        <!-- Routines View -->
+        <div v-if="currentView === 'routines'">
+          <!-- Action Bar -->
+          <div class="flex justify-end mb-6">
+            <button
+              @click="openRoutineModal()"
+              class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/25 flex items-center gap-2 font-medium"
+            >
+              <span>➕</span> Nueva Rutina
+            </button>
+          </div>
+
+          <!-- Routines List -->
+          <div class="space-y-4">
+            <div
+              v-for="routine in routines"
+              :key="routine.id"
+              class="bg-slate-800/50 border border-slate-700/30 rounded-2xl p-6"
+            >
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="text-lg font-bold text-white">{{ routine.name }}</h3>
+                  <p class="text-slate-400 text-sm">{{ routine.description || 'Sin descripción' }}</p>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">{{ routine._count.exercises }} ejercicios</span>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    @click="openRoutineModal(routine)"
+                    class="bg-slate-700/50 text-slate-300 px-4 py-2 rounded-xl hover:bg-indigo-600/50 hover:text-white transition-all"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    @click="confirmDeleteRoutine(routine)"
+                    class="bg-slate-700/50 text-slate-300 px-4 py-2 rounded-xl hover:bg-red-600/50 hover:text-white transition-all"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Empty State for Routines -->
+            <div
+              v-if="routines.length === 0"
+              class="text-center py-16"
+            >
+              <div class="text-6xl mb-4">📅</div>
+              <h3 class="text-xl font-bold text-white mb-2">No hay rutinas</h3>
+              <p class="text-slate-400 mb-6">Crea la primera rutina para empezar.</p>
+              <button
+                @click="openRoutineModal()"
+                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-purple-500 hover:to-indigo-500 transition-all"
+              >
+                ➕ Crear Rutina
+              </button>
+            </div>
+          </div>
+        </div>
+
 
         <!-- Stats View -->
         <div
@@ -423,32 +500,123 @@
       </div>
     </Transition>
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Routine Modal -->
     <Transition name="modal-fade">
       <div
-        v-if="isDeleteModalOpen"
+        v-if="isRoutineModalOpen"
         class="fixed inset-0 bg-slate-900/95 flex items-center justify-center z-50 p-4"
-        @click.self="isDeleteModalOpen = false"
+        @click.self="isRoutineModalOpen = false"
+      >
+        <Transition name="modal-scale">
+          <div
+            class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto shadow-2xl"
+          >
+            <div class="p-6 border-b border-slate-700 flex items-center justify-between bg-slate-800">
+              <h2 class="text-xl font-bold text-white">
+                {{ isEditing ? '✏️ Editar Rutina' : '➕ Nueva Rutina' }}
+              </h2>
+              <button
+                @click="isRoutineModalOpen = false"
+                class="text-slate-400 hover:text-white transition-colors text-2xl w-10 h-10 rounded-full hover:bg-slate-700 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              @submit.prevent="saveRoutine"
+              class="p-6 space-y-4"
+            >
+              <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Nombre de la Rutina *</label>
+                <input
+                  v-model="routineForm.name"
+                  type="text"
+                  required
+                  placeholder="Ej: Día de Pecho y Tríceps"
+                  class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Descripción</label>
+                <textarea
+                  v-model="routineForm.description"
+                  rows="3"
+                  placeholder="Describe el enfoque de la rutina..."
+                  class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 resize-none"
+                ></textarea>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Ejercicios</label>
+                <div class="max-h-60 overflow-y-auto bg-slate-700/50 rounded-xl p-4 space-y-3">
+                  <div
+                    v-for="exercise in exercises"
+                    :key="exercise.id"
+                    class="flex items-center"
+                  >
+                    <input
+                      type="checkbox"
+                      :id="`ex-${exercise.id}`"
+                      :value="exercise.id"
+                      v-model="routineForm.exercises"
+                      class="h-4 w-4 rounded border-slate-500 bg-slate-600 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label
+                      :for="`ex-${exercise.id}`"
+                      class="ml-3 text-sm text-slate-300"
+                    >{{ exercise.name }}</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  @click="isRoutineModalOpen = false"
+                  class="flex-1 bg-slate-700 text-slate-300 px-6 py-3 rounded-xl hover:bg-slate-600 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  :disabled="isSaving"
+                  class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-purple-500 hover:to-indigo-500 transition-all disabled:opacity-50 font-medium"
+                >
+                  {{ isSaving ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Guardar') }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+
+    <!-- Delete Routine Confirmation Modal -->
+    <Transition name="modal-fade">
+      <div
+        v-if="isDeleteRoutineModalOpen"
+        class="fixed inset-0 bg-slate-900/95 flex items-center justify-center z-50 p-4"
+        @click.self="isDeleteRoutineModalOpen = false"
       >
         <Transition name="modal-scale">
           <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6">
             <div class="text-center mb-6">
               <div class="text-5xl mb-4">⚠️</div>
-              <h3 class="text-xl font-bold text-white mb-2">¿Eliminar ejercicio?</h3>
-              <p class="text-slate-400">Esta acción no se puede deshacer. El ejercicio "{{ exerciseToDelete?.name }}"
-                será
-                eliminado permanentemente.</p>
+              <h3 class="text-xl font-bold text-white mb-2">¿Eliminar rutina?</h3>
+              <p class="text-slate-400">Esta acción no se puede deshacer. La rutina "{{ routineToDelete?.name }}" será eliminada permanentemente.</p>
             </div>
 
             <div class="flex gap-3">
               <button
-                @click="isDeleteModalOpen = false"
+                @click="isDeleteRoutineModalOpen = false"
                 class="flex-1 bg-slate-700 text-slate-300 px-6 py-3 rounded-xl hover:bg-slate-600 transition-all"
               >
                 Cancelar
               </button>
               <button
-                @click="deleteExercise"
+                @click="deleteRoutine"
                 class="flex-1 bg-red-600 text-white px-6 py-3 rounded-xl hover:bg-red-500 transition-all font-medium"
               >
                 🗑️ Eliminar
@@ -491,6 +659,21 @@ interface Exercise {
   createdAt: string;
 }
 
+interface Routine {
+  id: string;
+  name: string;
+  description: string;
+  exercises: RoutineExercise[];
+  _count: {
+    exercises: number;
+  }
+}
+
+interface RoutineExercise {
+  exerciseId: string;
+  order: number;
+}
+
 interface Stats {
   totalExercises: number;
   byMuscle: { [key: string]: number };
@@ -498,8 +681,9 @@ interface Stats {
 }
 
 // State
-const currentView = ref<'exercises' | 'stats'>('exercises');
+const currentView = ref<'exercises' | 'stats' | 'routines'>('exercises');
 const exercises = ref<Exercise[]>([]);
+const routines = ref<Routine[]>([]);
 const stats = ref<Stats>({ totalExercises: 0, byMuscle: {}, byDifficulty: {} });
 const searchText = ref('');
 const filterMuscle = ref('Todos');
@@ -509,6 +693,10 @@ const isEditing = ref(false);
 const isSaving = ref(false);
 const currentExercise = ref<Exercise | null>(null);
 const exerciseToDelete = ref<Exercise | null>(null);
+const isRoutineModalOpen = ref(false);
+const currentRoutine = ref<Routine | null>(null);
+const routineToDelete = ref<Routine | null>(null);
+const isDeleteRoutineModalOpen = ref(false);
 
 const muscles = ['Pecho', 'Espalda', 'Piernas', 'Hombros', 'Bíceps', 'Tríceps', 'Abdomen'];
 
@@ -544,6 +732,13 @@ const form = reactive({
   difficulty: 'Principiante',
   equipment: '',
   instructions: ''
+});
+
+const routineForm = reactive({
+  name: '',
+  description: '',
+  userId: 'clrt1j8k5000008l34w0o2q66', // Hardcoded user ID for now
+  exercises: [] as string[]
 });
 
 const toast = reactive({
@@ -582,10 +777,26 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
 const loadExercises = async () => {
   try {
     const response = await fetch(`${API_URL}/exercises`);
-    exercises.value = await response.json();
+    const data = await response.json();
+    // Ensure instructions are always an array
+    exercises.value = data.map((ex: Exercise) => ({
+      ...ex,
+      instructions: Array.isArray(ex.instructions) ? ex.instructions : [],
+    }));
   } catch (error) {
     console.error('Error loading exercises:', error);
     showToast('Error al cargar ejercicios', 'error');
+  }
+};
+
+const loadRoutines = async () => {
+  try {
+    // Hardcoded user ID for now
+    const response = await fetch(`${API_URL}/routines?userId=a7246c3e-eef1-421d-ab6c-e5f286b816c5`);
+    routines.value = await response.json();
+  } catch (error) {
+    console.error('Error loading routines:', error);
+    showToast('Error al cargar rutinas', 'error');
   }
 };
 
@@ -698,18 +909,132 @@ const deleteExercise = async () => {
   }
 };
 
+const openRoutineModal = (routine?: Routine) => {
+  if (routine) {
+    isEditing.value = true;
+    currentRoutine.value = routine;
+    routineForm.name = routine.name;
+    routineForm.description = routine.description;
+    routineForm.exercises = routine.exercises.map(ex => ex.exerciseId);
+  } else {
+    isEditing.value = false;
+    currentRoutine.value = null;
+    routineForm.name = '';
+    routineForm.description = '';
+    routineForm.exercises = [];
+  }
+  isRoutineModalOpen.value = true;
+};
+
+const saveRoutine = async () => {
+  if (!routineForm.name.trim()) {
+    showToast('El nombre es requerido', 'error');
+    return;
+  }
+
+  isSaving.value = true;
+
+  try {
+    const routineData = {
+      name: routineForm.name,
+      description: routineForm.description,
+      userId: routineForm.userId
+    };
+
+    let savedRoutine;
+
+    if (isEditing.value && currentRoutine.value) {
+      const response = await fetch(`${API_URL}/routines/${currentRoutine.value.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(routineData)
+      });
+      if (!response.ok) throw new Error('Error updating');
+      savedRoutine = await response.json();
+      showToast('¡Rutina actualizada!');
+    } else {
+      const response = await fetch(`${API_URL}/routines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(routineData)
+      });
+      if (!response.ok) throw new Error('Error creating');
+      savedRoutine = await response.json();
+      showToast('¡Rutina creada!');
+    }
+
+    //
+    // Lógica para actualizar ejercicios en la rutina
+    const routineId = savedRoutine.id;
+    const existingExercises = currentRoutine.value?.exercises.map(ex => ex.exerciseId) || [];
+    const exercisesToAdd = routineForm.exercises.filter(exId => !existingExercises.includes(exId));
+    const exercisesToRemove = existingExercises.filter(exId => !routineForm.exercises.includes(exId));
+
+    for (const exerciseId of exercisesToAdd) {
+      await fetch(`${API_URL}/routines/${routineId}/exercises`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseId, order: 0 }) // `order` is not handled yet
+      });
+    }
+
+    for (const exerciseId of exercisesToRemove) {
+      await fetch(`${API_URL}/routines/${routineId}/exercises/${exerciseId}`, {
+        method: 'DELETE'
+      });
+    }
+
+    isRoutineModalOpen.value = false;
+    loadRoutines();
+  } catch (error) {
+    console.error(error);
+    showToast('Error al guardar la rutina', 'error');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const confirmDeleteRoutine = (routine: Routine) => {
+  routineToDelete.value = routine;
+  isDeleteRoutineModalOpen.value = true;
+};
+
+const deleteRoutine = async () => {
+  if (!routineToDelete.value) return;
+
+  try {
+    const response = await fetch(`${API_URL}/routines/${routineToDelete.value.id}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) throw new Error('Error deleting');
+
+    showToast('Rutina eliminada');
+    isDeleteRoutineModalOpen.value = false;
+    loadRoutines();
+  } catch (error) {
+    console.error(error);
+    showToast('Error al eliminar la rutina', 'error');
+  }
+};
+
 // Socket connection for real-time updates
 let socket: any = null;
 
 onMounted(() => {
   loadExercises();
   loadStats();
+  loadRoutines();
 
   socket = io(API_URL);
   socket.on('exercises-updated', () => {
     console.log('🔔 Datos actualizados');
     loadExercises();
     loadStats();
+  });
+  socket.on('routines-updated', () => {
+    console.log('🔔 Rutinas actualizadas');
+    loadRoutines();
   });
 });
 </script>
