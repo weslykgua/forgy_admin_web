@@ -645,7 +645,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { io } from 'socket.io-client';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://localhost:3000/api';
 
 interface Exercise {
   id: string;
