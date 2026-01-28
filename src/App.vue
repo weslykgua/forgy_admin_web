@@ -789,10 +789,20 @@ const loadExercises = async () => {
   }
 };
 
+const getHeaders = () => {
+  const token = localStorage.getItem('token') || '';
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
+
 const loadRoutines = async () => {
   try {
     // Hardcoded user ID for now
-    const response = await fetch(`${API_URL}/routines?userId=a7246c3e-eef1-421d-ab6c-e5f286b816c5`);
+    const response = await fetch(`${API_URL}/routines?userId=a7246c3e-eef1-421d-ab6c-e5f286b816c5`, {
+      headers: getHeaders()
+    });
     routines.value = await response.json();
   } catch (error) {
     console.error('Error loading routines:', error);
@@ -856,20 +866,26 @@ const saveExercise = async () => {
     if (isEditing.value && currentExercise.value) {
       const response = await fetch(`${API_URL}/exercises/${currentExercise.value.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(exerciseData)
       });
 
-      if (!response.ok) throw new Error('Error updating');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Error updating');
+      }
       showToast('¡Ejercicio actualizado!');
     } else {
       const response = await fetch(`${API_URL}/exercises`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(exerciseData)
       });
 
-      if (!response.ok) throw new Error('Error creating');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Error creating');
+      }
       showToast('¡Ejercicio creado!');
     }
 
@@ -894,7 +910,8 @@ const deleteExercise = async () => {
 
   try {
     const response = await fetch(`${API_URL}/exercises/${exerciseToDelete.value.id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders()
     });
 
     if (!response.ok) throw new Error('Error deleting');
@@ -946,7 +963,7 @@ const saveRoutine = async () => {
     if (isEditing.value && currentRoutine.value) {
       const response = await fetch(`${API_URL}/routines/${currentRoutine.value.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(routineData)
       });
       if (!response.ok) throw new Error('Error updating');
@@ -955,7 +972,7 @@ const saveRoutine = async () => {
     } else {
       const response = await fetch(`${API_URL}/routines`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(routineData)
       });
       if (!response.ok) throw new Error('Error creating');
@@ -973,14 +990,15 @@ const saveRoutine = async () => {
     for (const exerciseId of exercisesToAdd) {
       await fetch(`${API_URL}/routines/${routineId}/exercises`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({ exerciseId, order: 0 }) // `order` is not handled yet
       });
     }
 
     for (const exerciseId of exercisesToRemove) {
       await fetch(`${API_URL}/routines/${routineId}/exercises/${exerciseId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeaders()
       });
     }
 
@@ -1004,7 +1022,8 @@ const deleteRoutine = async () => {
 
   try {
     const response = await fetch(`${API_URL}/routines/${routineToDelete.value.id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders()
     });
 
     if (!response.ok) throw new Error('Error deleting');
@@ -1026,7 +1045,7 @@ onMounted(() => {
   loadStats();
   loadRoutines();
 
-  socket = io(API_URL);
+  socket = io(API_URL.replace('/api', ''));
   socket.on('exercises-updated', () => {
     console.log('🔔 Datos actualizados');
     loadExercises();
